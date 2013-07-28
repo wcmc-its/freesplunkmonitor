@@ -2,68 +2,51 @@
 #
 # splunksearch: This script would scan splunk for messages and email when alerts are found
 #
-#
-#
-
 CONFIGFILE=splunkappconfig.properties
-SPLUNK=/opt/splunk/bin
+SPLUNK=/opt/splunk/bin/splunk
+CONFIGARRAY=()
+RESULTARRAY=()
 
-
-function status()
+function splunksearch()
 {
-   checkpidfile 
-   if [ "$RETVAL" -eq "0" ]; then
-      log_success_msg "${NAME} (pid ${kpid}) is running..."
-   elif [ "$RETVAL" -eq "1" ]; then
-      log_failure_msg "PID file exists, but process is not running"
-   else 
-      checklockfile
-      if [ "$RETVAL" -eq "2" ]; then
-         log_failure_msg "${NAME} lockfile exists but process is not running"
-      else
-         pid="$(/usr/bin/pgrep -u ${TOMCAT_USER} -f ${NAME})"
-         if [ -z "$pid" ]; then
-             log_success_msg "${NAME} is stopped"
-             RETVAL="3"
-         else
-             log_success_msg "${NAME} (pid $pid) is running..."
-             RETVAL="0"
-         fi
-      fi
-  fi
+   IFS=$'\r\n' RESULTARRAY=(`${SPLUNK} search $1 -earliest=-5m`)
+   return 0 
 }
 
 function parsesplunkconfig()
 {
-   echo "Usage: $0 {start|stop|restart|condrestart|try-restart|reload|force-reload|status|version}"
-   RETVAL="2"
+   if [[ ! -r ${CONFIGFILE} ]] 
+     then 
+     echo "parsesplunkconfig() cannot read configuration file"
+     exit 2
+   fi
+   IFS=$'\r\n' CONFIGARRAY=(`cat ${CONFIGFILE}`)  
+   return 0
 }
 
-function usage()
-{
-   echo "Usage: $0 {start|stop|restart|condrestart|try-restart|reload|force-reload|status|version}"
-   RETVAL="2"
-}
+# parsing the configuration file
+parsesplunkconfig
 
-# See how we were called.
-RETVAL="0"
-case "$1" in
-    start)
-        start
-        ;;
-    stop)
-        stop
-        ;;
-    status)
-        status
-        ;;
-    version)
-	 	version
-#        ${TOMCAT_SCRIPT} version
-        ;;
-    *)
-      usage
-      ;;
-esac
+# goign throug the search strings in configuration file
+for i in ${CONFIGARRAY[*]}
+do 
 
-exit $RETVAL
+  CURRENTSEARCHSTRING=`echo $i  | awk -F"|" '{print $1}'`
+  SEVERITY=`echo $i  | awk -F"|" '{print $2}'`
+  MAILINGLIST=`echo $i  | awk -F"|" '{print $3}'`
+  splunksearch ${CURRENTSEARCHSTRING}
+  if [ ! -z "${CURRENTSEARCHSTRING}" ]                           # Is parameter #1 zero length?
+  then
+     splunksearch ${CURRENTSEARCHSTRING}
+  fi
+
+  # if search returned values send alert
+  if [[ ${#RESULTARRAY[*]} != 0 ]] 
+  then
+     echo ${RESULTARRAY[*]} |  mail -s ${SEVERITY} ${MAILINGLIST}
+  fi
+
+done
+
+# return something good .. we finished.
+exit 0
