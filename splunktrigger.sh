@@ -23,7 +23,8 @@ EOF
 
 function splunksearch()
 {
-   IFS=$'\r\n' RESULTARRAY=(`${SPLUNK} search "$1 earliest=-5m"`)
+   # stripping off the quotes due to json payload submittal issues
+   IFS=$'\r\n' RESULTARRAY=(`${SPLUNK} search "$1 earliest=-5m" | sed 's/["]//g'`)
    return 0 
 }
 
@@ -42,8 +43,8 @@ function parsesplunkconfig()
    then
      echo "No Alert header found in the configuration file"
      echo "please provide header like so .. "
-     echo "#<application>|<class>|<epage>|<message catalog>|<service now>|<servicenow assignment group>|<tec group>|<aws account>|<aws region>"
-     echo "For Ex: #NMA|NMA|GROUP_NMA|865|true|NMASupport|9849|994390710894|us-east-1"
+     echo "#<application>|<class>|<epage>|<message catalog>|<service now>|<servicenow assignment group>|<tec group>|<aws account>|<aws region>|<alerting endpoint url>"
+     echo "For Ex: #NMA|NMA|GROUP_NMA|865|true|NMASupport|9849|994390710894|us-east-1|http://endpoint.tec.ehi.com/application/endpoint.php"
      exit 2
    fi
 
@@ -75,7 +76,8 @@ do
   then
      createJSONpayload
      #echo ${RESULTARRAY[*]} |  mail -s ${SEVERITY} ${MAILINGLIST}
-     echo "curl -F payload=@${HOMEDIR}/jsonpayload.file -X POST -H 'Content-type:application/json' -v http://localhost:5000/mycontroller/myaction"
+     echo "curl -F payload=@${HOMEDIR}/jsonpayload.file -X POST -H 'Content-type:application/json' -v ${ALERTCONFIGLIST[9]} "
+     curl -v -X POST -H 'Content-type:application/json' ${ALERTCONFIGLIST[9]} -d @${HOMEDIR}/jsonpayload.file
   fi
 
 done
