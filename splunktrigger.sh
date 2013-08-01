@@ -23,7 +23,7 @@ EOF
 
 function splunksearch()
 {
-   IFS=$'\r\n' RESULTARRAY=(`${SPLUNK} search $1 -earliest=-5m`)
+   IFS=$'\r\n' RESULTARRAY=(`${SPLUNK} search "$1 earliest=-5m"`)
    return 0 
 }
 
